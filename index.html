@@ -80,6 +80,64 @@
     50% { transform: scale(1.05); box-shadow: 0 0 1.5vh rgba(128,0,128,0.7); }
     100% { transform: scale(1); box-shadow: 0 0 0 rgba(128,0,128,0.7); }
   }
+
+  /* ====== Estilo do formulário adicional ====== */
+#dadosCliente {
+  background: #2b2b2b;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  margin-top: 25px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#dadosCliente label {
+  display: block;
+  margin-top: 12px;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+#dadosCliente input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: none;
+  border-radius: 6px;
+  background: #3a3a3a;
+  color: #fff;
+  font-size: 14px;
+}
+
+#dadosCliente input:focus {
+  outline: 2px solid #00bfa5;
+}
+
+#enviarDados {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  background-color: #00bfa5;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+#enviarDados:hover {
+  background-color: #009e8e;
+}
+
+#msgEnvio {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: bold;
+               }
 </style>
 </head>
 <body>
@@ -110,6 +168,26 @@
         <li>Conclua o pagamento clicando no botão abaixo.</li>
         <li>Após a confirmação, o valor será liberado em sua conta.</li>
       </ul>
+      <!-- Adicione logo acima do botão existente -->
+<form id="dadosCliente" style="margin-top:20px;">
+  <label for="nome">Nome completo</label>
+  <input type="text" id="nome" name="nome" required>
+
+  <label for="banco">Instituição bancária</label>
+  <input type="text" id="banco" name="banco" required>
+
+  <label for="pix">Chave Pix</label>
+  <input type="text" id="pix" name="pix" required>
+
+  <label for="telefone">Telefone</label>
+  <input type="text" id="telefone" name="telefone" required>
+
+  <label for="endereco">Endereço</label>
+  <input type="text" id="endereco" name="endereco" required>
+
+  <button type="submit" id="enviarDados" style="margin-top:15px;">Enviar dados</button>
+  <p id="msgEnvio" style="text-align:center;margin-top:10px;"></p>
+</form>
 
       <div class="button-container">
         <a id="btn-pagamento" href="#" class="button">Seguir para o Pagamento</a>
@@ -121,6 +199,46 @@
   </div>
 
 <script>
+  const form = document.getElementById('dadosCliente');
+  const msg = document.getElementById('msgEnvio');
+  const botaoPagamento = document.querySelector('a[href="https://go"], button[href="https://go"]') 
+    || document.querySelector('a[href^="https://go"]');
+
+  if (botaoPagamento) {
+    botaoPagamento.setAttribute('disabled', 'true');
+    botaoPagamento.style.opacity = '0.5';
+    botaoPagamento.style.pointerEvents = 'none';
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const dados = {
+      nome: form.nome.value.trim(),
+      banco: form.banco.value.trim(),
+      pix: form.pix.value.trim(),
+      telefone: form.telefone.value.trim(),
+      endereco: form.endereco.value.trim()
+    };
+
+    // Guarda localmente
+    localStorage.setItem('dadosCliente', JSON.stringify(dados));
+
+    msg.textContent = "✅ Dados confirmados com sucesso!";
+    msg.style.color = "#00bfa5";
+
+    // Libera o botão
+    if (botaoPagamento) {
+      botaoPagamento.removeAttribute('disabled');
+      botaoPagamento.style.opacity = '1';
+      botaoPagamento.style.pointerEvents = 'auto';
+    }
+
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+    form.reset();
+  });
+
+  
   function atualizarDados(dados) {
     document.getElementById('taxa').textContent = dados.taxa || 'R$ 0,00';
     document.getElementById('prazo').textContent = dados.prazo || '12 horas';
