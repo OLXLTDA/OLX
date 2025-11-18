@@ -156,3 +156,24 @@ li { margin-bottom: 1vh; }
   transition: all 2.5s ease;
   transition-delay: 1s;
        }
+
+/* ... MANTENHA TODO O CSS ANTERIOR ... */
+
+/* --- NOVA ANIMAÇÃO DE LOADING NO BOTÃO --- */
+.btn-loading-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Garante que o ícone gire suavemente */
+.fa-spin {
+  animation: fa-spin 1s infinite linear;
+}
+
+/* Ajuste para o botão desabilitado ficar visualmente agradável */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
