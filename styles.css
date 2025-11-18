@@ -172,6 +172,28 @@ li { margin-bottom: 1vh; }
   animation: fa-spin 1s infinite linear;
 }
 
+/* ... CSS ANTERIOR ... */
+
+/* Loader Intermediário (Aparece entre o Form e o Botão) */
+#loader-intermedio {
+  display: none; /* Oculto por padrão */
+  text-align: center;
+  padding: 50px 0;
+  animation: fadeIn 0.5s;
+}
+
+#loader-intermedio i {
+  font-size: 40px;
+  color: #00bfa5;
+  margin-bottom: 15px;
+}
+
+#loader-intermedio p {
+  font-size: 16px;
+  color: #ccc;
+  margin: 0;
+}
+
 /* Ajuste para o botão desabilitado ficar visualmente agradável */
 button:disabled {
   cursor: not-allowed;
