@@ -160,7 +160,7 @@ function renderContainer(dadosBrutos) {
       // Garante scroll suave para o usuário ver a ação
       btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    }, 1500);
+    }, 3000);
   });
 }
 
